@@ -1,0 +1,18 @@
+{
+	"groupId": "cn.egame.sdk",
+	"artifactId": "egamenet",
+	"version": "2.0.10-SNAPSHOT",
+	"dependencies": [
+		{
+			"groupId": "com.squareup.okhttp3",
+			"artifactId": "okhttp",
+			"version": "3.6.0"
+		},
+		{
+			"groupId": "com.orhanobut",
+			"artifactId": "logger",
+			"version": "1.15"
+		}
+	]
+}
+

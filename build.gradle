@@ -1,0 +1,118 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.2.2'
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.4.13"
+    }
+}
+
+allprojects {
+    repositories {
+        jcenter()
+    }
+}
+
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'maven-publish'
+
+
+def aarArifact = getAarArifact()
+def packageConfig = parseConfigFromJson()
+
+
+task dummy {
+
+}
+
+publishing {
+    publications {
+        aar(MavenPublication) {
+            groupId = packageConfig.groupId
+            artifactId = packageConfig.artifactId
+            version = packageConfig.version
+            artifact aarArifact
+            pom.withXml {
+                def dependenciesNode = asNode().appendNode('dependencies')
+                def dependencyNode = dependenciesNode.appendNode('dependency')
+                if (packageConfig.dependencies != null) {
+                	packageConfig.dependencies.each {
+                		assert(it.groupId != null
+                			&& it.artifactId != null
+                			&& it.version != null)
+		                dependencyNode.appendNode('groupId', it.groupId)
+		                dependencyNode.appendNode('artifactId', it.artifactId)
+		                dependencyNode.appendNode('version', it.version)
+                	}
+                }
+            }
+
+        }
+    }
+}
+
+artifactory {
+    contextUrl = "${artifactory_contextUrl}" // Artifactory url
+    publish {
+        defaults {
+            // Tell the Artifactory Plugin which artifacts should be published to Artifactory.
+            publications('aar')
+            publishArtifacts = true
+            // Properties to be attached to the published artifacts.
+            properties = ['qa.level': 'basic', 'dev.team': 'core']
+            // Publish generated POM files to Artifactory (true by default)
+            publishPom = true
+        }
+
+        repository {
+            repoKey = packageConfig.version.endsWith('SNAPSHOT') ? 'gradle-dev-local' : 'gradle-release-local'
+            username = "${artifactory_user}"
+            password = "${artifactory_password}"
+            maven = true
+        }
+    }
+}
+
+def getAarArifact() {
+    def aarCollection = files {file('./artifact').listFiles()}.filter {it.name.endsWith('aar')}
+    if (aarCollection.size() != 1) {
+        throw new IllegalArgumentException('aar数目不为1, 请修复')
+    }
+    return aarCollection.getSingleFile()
+}
+
+
+/*
+JSON格式如下:
+{
+	"groupId": "cn.egame.sdk",
+	"artifactId": "egamenet",
+	"version": "2.0.10-SNAPSHOT",
+	"dependencies": [
+		{
+			"groupId": "com.squareup.okhttp3",
+			"artifactId": "okhttp",
+			"version": "3.6.0"
+		},
+		...
+	]
+}
+*/
+
+def parseConfigFromJson() {
+    def jsonFile = file('./artifact/package.json')
+    if (!jsonFile.exists()) {
+        throw new IllegalArgumentException('package.json不存在')
+    }
+    def result = new groovy.json.JsonSlurper().parseText(jsonFile.text)
+
+    assert(result.groupId != null 
+    	&& result.artifactId != null
+    	&& result.version != null)
+
+    result.dependencies.each {
+    	println it.groupId + ': ' + it.artifactId + ': ' + it.version
+    }
+    return result
+}
